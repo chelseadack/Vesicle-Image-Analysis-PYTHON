@@ -1,64 +1,67 @@
-# Vesicle (GUV) fluorescence quantification (Python)
+# Vesicle Image Analysis (Python)
+
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
 Automated detection of giant unilamellar vesicles (GUVs) in fluorescence microscope images, with per-vesicle measurement of whole-vesicle or membrane-localised fluorescence.
 
 The pipeline finds every vesicle in a marker dye image, measures the fluorescence of each one in a second channel, and compares conditions using:
-
 - per-vesicle violin plots (violin, data points, box, median notch and mean) for all repeats pooled, and for each biological repeat side by side
 - tables of the number of vesicles and the mean & median fluorescence for each condition and each image
-- for membrane/lumen ratios, the number and % of **localised** vesicles (ratio > 1)
+- for membrane/lumen ratios, the number and percentage of localised vesicles (ratio > 1)
 
-It is a Python version of MATLAB GUV analysis scripts. The circle detection reproduces MATLAB's `imfindcircles`, so results match the original MATLAB method. Cellpose deep learning segmentation is available as an alternative detection method.
+It is a Python version of the MATLAB GUV analysis scripts used in the following publications: [Dack et al. 2026. ACS Synth Biol](https://pubs.acs.org/asbcd6/article-pdf/doi/10.1021/acssynbio.6c00626/68816317/sb6c00626.pdf) and [Bradic et al. 2026. ChemRxiv](https://chemrxiv.org/doi/full/10.26434/chemrxiv.15010597/v1). In this version, Cellpose deep learning segmentation is available as an alternative detection method.
 
-## Vesicle detection
+Developed by Chelsea Dack (chelsea.dack.24@ucl.ac.uk), PhD student in the [Booth group](https://boothlab.uk/).
 
-Vesicles are detected in the marker dye (`_DYE`) image, using one of 2 methods (`detection_method`):
+## In Development
 
-- **`'HOUGH'`:** a circular Hough transform. It re-implements MATLAB's `imfindcircles(image, radiusRange, 'Sensitivity', s)` (see `Functions/matlab_helpers.py`). `sensitivity_factor` sets how circular a vesicle has to be (0 = perfect circle, 1 = barely a circle).
-- **`'CELLPOSE'`:** [Cellpose](https://github.com/MouseLand/cellpose) segmentation. Each vesicle is measured as the circle with the same area (centre = centroid). It finds vesicles with a dark lumen and a bright membrane, which the Hough transform can miss. It is slower (about 1 minute per image), so its results are saved in a `Saved vesicle labels` folder inside the working folder and reused. If an image changes, it is detected again automatically.
+- Additional detection method (Watershed segmentation) to improve computationally-light detection.
+- Unit tests.
+- Non-programmer-friendly interface.
 
-Both methods keep only vesicles between `min_diameter_micron` and `max_diameter_micron`.
+## Step 1. Vesicle Detection
+
+Vesicles are detected in the marker dye (`_DYE`) image, using one of two methods (`detection_method`):
+
+- **`'HOUGH'`:** a circular Hough transform. It re-implements MATLAB's `imfindcircles(image, radiusRange, 'Sensitivity', s)` (see `Functions/matlab_helpers.py`). This detection approach needs to be optimised for your images manually. It struggles with densely populated or messy images and membrane-localised fluorescent dye markers, but is light-weight, quick, and uses precise parameters.
+     - **How it works:** It uses a circular hough transformation. It finds an edge then predicts where the centre of the circle is, using the radii range that you define. It then choses the points with the highest number of “votes” as circle centers. You can change the sensitivity for 0=perfect circle and 1=more noise.
+- **`'CELLPOSE'`:** [Cellpose](https://github.com/MouseLand/cellpose) segmentation. It is a deep-learning model. It is better for densely populated or messy images and membrane-localised fluorescent dye markers, but it requires download of the model, is computationally more intensive, and is slower (about 1 minute per image), so its results are saved in a `Saved vesicle labels` folder inside the working folder and reused. If an image changes, it is detected again automatically.
+   - **How it works:** For every pixel, it assigns a 'cell probability score', then, if it is predicted to be in a cell, it a calculates a vector flow field for which way is the center of the cell. It uses ODE tracking to determine where most pixels meet if they follow along those vectors. Pixels that converge at the same connected spine/centre are grouped. It can be case-by-case trained for better detection. Compared to simpler models, like U-Net which tries to predict a binary mask, boundaries can be detected better. 
+
+Both methods only keep vesicles between `min_diameter_micron` and `max_diameter_micron`.
 
 Each image is only detected once. The test, the measurement and the check figures all use the same detected vesicles.
 
-## Fluorescence measurement
+Detection can be validated for individual images using `func_test_detection_vesicle`:
+'<img src="example_imgs/test_detection.png" width="250" height="350">
 
-The fluorescence (`_MES`) image is measured in one of 3 ways (`measure_fluorescence_type`):
+## Step 2. Fluorescence Measurement
 
-| Type | Measurement | Normalisation |
-|---|---|---|
-| `'WHOLE'` | Mean fluorescence inside the vesicle | minus the mean of the `_Background` image |
-| `'MEMBRANE-BACKGROUND'` | Peak membrane fluorescence (see below) | minus the mean of the `_Background` image |
-| `'MEMBRANE-INNER'` | Peak membrane fluorescence (see below) | divided by the mean of a 10 pixel radius circle at the vesicle centre (membrane/lumen ratio). No background image is needed. |
+The fluorescence (`_MES`) image is measured in one of three ways (`measure_fluorescence_type`):
 
-**Peak membrane fluorescence:** 4 line profiles (right, left, down, up) are taken from the vesicle centre out to 1.3 × the radius. The peak of each is found between `inner_boundary` × radius and `outer_boundary` × radius, where the membrane should be. The highest and lowest of the 4 peaks are removed and the 2 middle values are averaged.
+| Type | Measurement | Use Example | Normalisation |
+|---|---|---|---|
+| `'WHOLE'` | Mean fluorescence inside the vesicle | GFP expression levels | minus the mean of the `_Background` image |
+| `'MEMBRANE-BACKGROUND'` | Membrane fluorescence (see below) | Recruitment to outer vesicle surface | minus the mean of the `_Background` image |
+| `'MEMBRANE-INNER'` | Membrane fluorescence (see below) | Recruitment to inner vesicle surface | divided by the mean of a 10 pixel radius circle at the vesicle centre (membrane/lumen ratio). No background image is needed. |
+
+**Membrane fluorescence:** 4 line profiles (right, left, down, up) are taken from the vesicle centre out to 1.3 × the radius. The peak of each is found between `inner_boundary` × radius and `outer_boundary` × radius, where the membrane should be. The highest and lowest of the 4 peaks are removed and the 2 middle values are averaged.
+- Line profile measurement can be validated for individual vesicles using `func_line_profile_vesicle`:
+'<img src="example_imgs/test_line_profile.png" width="250" height="350">
 
 **Removed vesicles (`'MEMBRANE-INNER'` only):** vesicles with a completely dark centre (division by 0), or a ratio above `max_ratio` (default 30), are removed from all results. A near-black lumen gives a meaningless, extreme ratio (hundreds to thousands), while real, strongly localised vesicles in the test dataset reached ratios of about 26. The number removed is printed.
 
-## Repository structure
+Calculated fluorescence values can be validated for individual images using `func_plot_MES_for_sample_vesicle`:
+'<img src="example_imgs/test_fluorescence_values.png" width="250" height="350">
 
-```
-PYTHON_CHELS_vesicle_quantification/
-├── MAIN_SCRIPT_VESICLE.ipynb   # main analysis notebook, run it cell by cell
-├── Functions/                  # functions called by the notebook
-├── README.md
-└── LICENSE
-```
+## Step 3. Violin Plots
 
-| File | Purpose |
-|---|---|
-| `MAIN_SCRIPT_VESICLE.ipynb` | Main analysis notebook. Run it cell by cell. |
-| `Functions/func_load_images_vesicle.py` | Finds the samples in a condition folder and loads their images |
-| `Functions/func_detect_vesicles.py` | Vesicle detection (Hough or Cellpose, see above) |
-| `Functions/func_detect_measure_vesicle.py` | Detects the vesicles in every image and measures each one, giving one table of every vesicle |
-| `Functions/func_summary_tables_vesicle.py` | Number, mean, median and % localised vesicles for each condition and each image |
-| `Functions/func_violin_plot.py` | Violin plots and axis styling |
-| `Functions/func_test_detection_vesicle.py` | QC figure: detected vesicles and the regions measured, for one image |
-| `Functions/func_plot_MES_for_sample_vesicle.py` | QC figure: each vesicle coloured by its measured fluorescence, and numbered |
-| `Functions/func_line_profile_vesicle.py` | QC figure: the 4 line profiles of one vesicle, next to the image |
-| `Functions/matlab_helpers.py` | Python versions of the MATLAB functions used (`imfindcircles`, `imread`, `im2gray`, `round`, `trimmean`, `bwperim`, ...) |
+Violin plots visualise the measured fluorescence values for individual vesicles, viewed either as a pooled population or as individual repeats:
+'<img src="example_imgs/plot_population.png" width="250" height="350">
+'<img src="example_imgs/plot_repeats.png" width="250" height="350">
 
-## Data format
+## Data Format
 
 The images are kept in a separate working folder, with one folder per condition:
 
@@ -104,7 +107,3 @@ Figures are interactive (zoom and pan, like MATLAB figures) using `ipympl`. Chan
 ## Acknowledgements
 
 Cellpose: Stringer, C., Wang, T., Michaelos, M. & Pachitariu, M. Cellpose: a generalist algorithm for cellular segmentation. *Nature Methods* 18, 100–106 (2021).
-
-## License
-
-MIT License, see [LICENSE](LICENSE).
