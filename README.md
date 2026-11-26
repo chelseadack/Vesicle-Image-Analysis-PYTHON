@@ -33,8 +33,8 @@ Both methods only keep vesicles between `min_diameter_micron` and `max_diameter_
 
 Each image is only detected once. The test, the measurement and the check figures all use the same detected vesicles.
 
-Detection can be validated for individual images using `func_test_detection_vesicle`:
-'<img src="example_imgs/test_detection.png" width="250" height="350">
+Detection can be validated for individual images using `func_test_detection_vesicle`:  
+<img src="example_imgs/test_detection.png" width="550" height="400">
 
 ## Step 2. Fluorescence Measurement
 
@@ -47,19 +47,19 @@ The fluorescence (`_MES`) image is measured in one of three ways (`measure_fluor
 | `'MEMBRANE-INNER'` | Membrane fluorescence (see below) | Recruitment to inner vesicle surface | divided by the mean of a 10 pixel radius circle at the vesicle centre (membrane/lumen ratio). No background image is needed. |
 
 **Membrane fluorescence:** 4 line profiles (right, left, down, up) are taken from the vesicle centre out to 1.3 × the radius. The peak of each is found between `inner_boundary` × radius and `outer_boundary` × radius, where the membrane should be. The highest and lowest of the 4 peaks are removed and the 2 middle values are averaged.
-- Line profile measurement can be validated for individual vesicles using `func_line_profile_vesicle`:
-'<img src="example_imgs/test_line_profile.png" width="250" height="350">
+- Line profile measurement can be validated for individual vesicles using `func_line_profile_vesicle`:  
+<img src="example_imgs/test_line_profile.png" width="550" height="400">
 
 **Removed vesicles (`'MEMBRANE-INNER'` only):** vesicles with a completely dark centre (division by 0), or a ratio above `max_ratio` (default 30), are removed from all results. A near-black lumen gives a meaningless, extreme ratio (hundreds to thousands), while real, strongly localised vesicles in the test dataset reached ratios of about 26. The number removed is printed.
 
-Calculated fluorescence values can be validated for individual images using `func_plot_MES_for_sample_vesicle`:
-'<img src="example_imgs/test_fluorescence_values.png" width="250" height="350">
+Calculated fluorescence values can be validated for individual images using `func_plot_MES_for_sample_vesicle`:  
+<img src="example_imgs/test_calculated_values.png" width="350" height="350">
 
 ## Step 3. Violin Plots
 
 Violin plots visualise the measured fluorescence values for individual vesicles, viewed either as a pooled population or as individual repeats:
-'<img src="example_imgs/plot_population.png" width="250" height="350">
-'<img src="example_imgs/plot_repeats.png" width="250" height="350">
+<img src="example_imgs/plot_population.png" width="250" height="350">  
+<img src="example_imgs/plot_repeats.png" width="550" height="350">
 
 ## Data Format
 
